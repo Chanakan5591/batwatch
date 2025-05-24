@@ -52,6 +52,19 @@ my $unplugged_msg = Email::MIME->create(
     body_str => "Node had been unplugged. I will continue to monitor the system battery level, once it goes under the threshold, I will notify you again and perform an automated shutdown to prevent data loss.\n"
 );
 
+my $replugged_msg = Email::MIME->create(
+    header_str => [
+        From    => $Config->{email}->{from},
+        To      => $Config->{email}->{to},
+        Subject => '[NOTIFY] Covent Node Plugged'
+    ],
+    attributes => {
+        encoding => 'quoted-printable',
+        charset  => 'ISO-8859-1'
+    },
+    body_str => "Node seem to have been plugged back in. We are safe.\n"
+);
+
 my $under_threshold_msg = Email::MIME->create(
     header_str => [
         From    => $Config->{email}->{from},
@@ -114,8 +127,10 @@ if ($ac_status eq '0') {
         system('shutdown', 'now');
     }
 
-} elsif ($ac_status ne '1') {
-    syslog(LOG_ERR, "Unexpected value in $psonline_path: '%s'", $ac_status);
+}  elsif ($ac_status eq '1' and $state ne "AC_PLUGGED") {
+    write_file($state_file, "AC_PLUGGED");
+    syslog(LOG_INFO, "AC adapter is back online");
+    sendmail($replugged_msg, { transport => $transport });
 }
 
 closelog();
